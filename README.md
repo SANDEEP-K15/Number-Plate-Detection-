@@ -89,58 +89,55 @@ This diagram shows the **full end-to-end flow** for both modes: **real-time ANPR
 
 ```mermaid
 flowchart TD
-    %% ===== ENTRY POINT =====
     A[Start] --> B[Select Mode]
-    B --> C[Real-time ANPR (main.py)]
-    B --> D[Web ANPR (app.py)]
+    B --> C[Real time ANPR main.py]
+    B --> D[Web ANPR app.py]
 
-    %% ===== REAL-TIME PIPELINE (main.py) =====
-    subgraph RT[Real-time ANPR - Webcam]
-        C --> RT1[Load Parameters\nhelper/params.py -> Parameters]
-        RT1 --> RT2[Load YOLOv5 Model\nai/ai_model.load_yolov5_model]
-        RT2 --> RT3[Load EasyOCR Reader\naio/ocr_model.easyocr_model_load]
-        RT3 --> RT4[Open Webcam\ncv2.VideoCapture(0)]
-        RT4 --> RT5[Loop: Capture Frame]
+    %% ===== REAL TIME PIPELINE =====
+    subgraph RT[Real time ANPR Webcam]
+        C --> RT1[Load Parameters helper params]
+        RT1 --> RT2[Load YOLOv5 Model]
+        RT2 --> RT3[Load EasyOCR Reader]
+        RT3 --> RT4[Open Webcam]
+        RT4 --> RT5[Capture Frame Loop]
 
-        RT5 --> RT6[Run Detection\nai/ai_model.detection(frame, model, names)]
-        RT6 --> RT7[Get Plate Bounding Box\n& Crop Plate Region]
-        RT7 --> RT8[Run OCR on Plate\ntext_reader.readtext(cropped_plate)]
-        RT8 --> RT9[Filter OCR Results\nhelper/general_utils.filter_text]
-        RT9 --> RT10[Append Latest Plate Text\nto ocr_results.csv\n(save_results)]
-        RT9 --> RT11[Print Plate Text to Console]
+        RT5 --> RT6[Run Detection]
+        RT6 --> RT7[Crop Plate Region]
+        RT7 --> RT8[Run OCR]
+        RT8 --> RT9[Filter OCR Results]
+        RT9 --> RT10[Append Text to CSV]
+        RT9 --> RT11[Print Plate Text]
 
-        RT7 --> RT12[Draw Bounding Box & Label\non Frame]
-        RT12 --> RT13[Show Frame (cv2.imshow)]
-        RT13 --> RT14[Check Key (cv2.waitKey)]
-        RT14 --> RT15{ESC Pressed?}
+        RT7 --> RT12[Draw Bounding Box]
+        RT12 --> RT13[Show Frame]
+        RT13 --> RT14[Check Key]
+        RT14 --> RT15{ESC Pressed}
+
         RT15 -->|No| RT5
-        RT15 -->|Yes| RT16[Release Camera & Close Windows]
+        RT15 -->|Yes| RT16[Release Camera]
     end
 
-    %% ===== WEB PIPELINE (app.py) =====
+    %% ===== WEB PIPELINE =====
     subgraph WEB[Flask Web ANPR]
         D --> W1[Start Flask App]
-        W1 --> W2[Load YOLOv5 Model via torch.hub\npath=model/last.pt]
+        W1 --> W2[Load YOLOv5 Model]
 
-        %% Upload-based detection (/)
-        W2 --> W3[Route '/': Show Upload Form\nindex.html]
+        W2 --> W3[Route Slash Upload Form]
         W3 --> W4[User Uploads Image]
-        W4 --> W5[Read Image Bytes\nrequest.files['file'].read()]
-        W5 --> W6[Convert Bytes to PIL Image\nImage.open(BytesIO)]
-        W6 --> W7[Run YOLOv5 on Image\nmodel(img, size=640)]
-        W7 --> W8[Render Detections on Image\nresults.render()]
-        W8 --> W9[Save Output Image\nstatic/image0.jpg]
-        W9 --> W10[Redirect User to static/image0.jpg]
+        W4 --> W5[Read Image Bytes]
+        W5 --> W6[Convert to PIL]
+        W6 --> W7[Run Detection]
+        W7 --> W8[Render Boxes]
+        W8 --> W9[Save Image]
+        W9 --> W10[Redirect User]
 
-        %% MJPEG streaming (/video)
-        W2 --> W11[Route '/video': Start gen()]
-        W11 --> W12[Open Webcam\ncv2.VideoCapture(0)]
-        W12 --> W13[Loop: Read Frame]
-        W13 --> W14[Encode Frame to JPEG\ncv2.imencode]
-        W14 --> W15[Wrap as PIL & Run YOLOv5\nmodel(img, size=640)]
-        W15 --> W16[Render Detections\nresults.render()]
-        W16 --> W17[Convert to BGR & JPEG Bytes]
-        W17 --> W18[Yield MJPEG Chunks\nFlask Response]
+        W2 --> W11[Route Video Stream]
+        W11 --> W12[Open Webcam]
+        W12 --> W13[Frame Loop]
+        W13 --> W14[Encode JPEG]
+        W14 --> W15[Run Detection]
+        W15 --> W16[Render Boxes]
+        W16 --> W17[Send Stream]
     end
 ```
 
