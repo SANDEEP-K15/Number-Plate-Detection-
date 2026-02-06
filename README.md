@@ -1,51 +1,150 @@
-Automatic Number Plate Recognition (ANPR) – YOLOv5 + OCR
-========================================================
+# Automatic Number Plate Recognition (ANPR) – YOLOv5 + OCR
 
 ### Overview
 
-This project implements **Automatic Number Plate Recognition (ANPR)** using:
+This project implements an **Automatic Number Plate Recognition (ANPR)** system using:
 
-- **YOLOv5-based plate detection** (`ai/ai_model.py`, `models/`, `utils/`)
-- **OCR for plate text** using **EasyOCR** (and optional Tesseract) (`ai/ocr_model.py`)
-- **Real-time webcam pipeline** (`main.py`)
-- **Flask web app** for image-based detection (`app.py`)
+- **YOLOv5** for license plate detection.
+- **EasyOCR** (and optionally Tesseract) for reading plate text.
+- A **real-time webcam pipeline** (`main.py`) that detects and reads plates live.
+- A **Flask web app** (`app.py`) where users can upload images or view a live detection stream.
 
-You can:
-- Run ANPR in **real time** from a webcam and log detected plate numbers.
-- Serve a **web interface** where users upload an image and see detected plates drawn on it.
+The system can:
+
+- Detect vehicle license plates from images or webcam frames.
+- Read and **log recognized plate numbers** to a CSV file.
+- Provide both **CLI / desktop** and **web-based** interfaces.
 
 ---
 
 ## Features
 
 - **YOLOv5-based license plate detector**
-- **EasyOCR**-based plate text recognition
-- **Filtering & post-processing** of OCR results to keep only plausible plate regions
-- **CSV logging** of recognized plate numbers (`ocr_results.csv`)
-- **Webcam demo** (`main.py`)
-- **Flask web demo** with image upload (`app.py`)
+  - Custom-trained YOLOv5 weights in `model/best.pt` or `model/last.pt`.
+- **OCR with EasyOCR**
+  - Robust text recognition from cropped plate regions.
+- **Post-processing & filtering**
+  - Uses geometric filters to keep only plausible plate regions.
+- **CSV logging**
+  - Saves recognized plate strings into `ocr_results.csv`.
+- **Real-time webcam ANPR**
+  - Full end-to-end pipeline: detect → crop → OCR → log → display.
+- **Flask web app**
+  - Upload an image and get a processed image with detections.
+  - Optional live MJPEG stream (`/video` route) with YOLOv5 detections.
 
 ---
 
 ## Project Structure
 
-Key files/folders (simplified):
+> (Only important files and directories listed)
 
-- `main.py` – Real-time ANPR using webcam (YOLOv5 + EasyOCR + CSV logging)
-- `app.py` – Flask web app for upload-based detection using YOLOv5
+- `main.py`  
+  Real-time ANPR using webcam (YOLOv5 + EasyOCR + CSV logging).
+
+- `app.py`  
+  Flask web app for:
+  - `/` – Image upload → detection → output image.
+  - `/video` – Continuous webcam stream with YOLOv5 detections.
+
 - `ai/`
-  - `ai_model.py` – Loads YOLOv5 model and runs detection on frames
-  - `ocr_model.py` – EasyOCR / Tesseract helpers
+  - `ai_model.py`  
+    - `load_yolov5_model()` – Loads YOLOv5 model from `helper/params.py::Parameters.model`.  
+    - `detection(frame, model, names)` – Runs YOLOv5 on a frame, returns annotated frame and label.
+  - `ocr_model.py`  
+    - `easyocr_model_load()` – Initializes EasyOCR reader.  
+    - `easyocr_model_works()` – Helper for running OCR on lists of images.  
+    - `pytesseract_model_works()` – Alternative OCR using Tesseract.
+
 - `helper/`
-  - `general_utils.py` – `filter_text`, `save_results` for OCR post-processing & logging
-  - `params.py` – ANPR parameters (thresholds, device, model path, etc.)
-- `models/`, `utils/` – YOLOv5 model definitions and utilities (ported from Ultralytics)
+  - `general_utils.py`  
+    - `filter_text(rectangle_size, ocr_result, region_threshold)` – Filters OCR results by bounding box size.  
+    - `save_results(text, csv_filename, folder_path)` – Appends recognized text to a CSV file.
+  - `params.py`  
+    - `Parameters` class – Central configuration (model path, thresholds, colors, device, etc.).
+
+- `models/`, `utils/`  
+  - Core YOLOv5 model definitions and utilities (ported from Ultralytics).
+
 - `model/`
-  - `best.pt`, `last.pt` – Trained YOLOv5 weights for plate detection
-- `plate_dataset/` – Example plate images / dataset
-- `templates/index.html` – Web UI template
-- `static/` – Output images for the Flask app
-- `requirements.txt` – Python dependencies
+  - `best.pt`, `last.pt` – YOLOv5 weights for plate detection (you must provide/replace these).
+
+- `templates/`
+  - `index.html` – Template for the Flask upload page.
+
+- `static/`
+  - `image0.jpg` – Last-output image from the Flask upload endpoint.
+
+- `plate_dataset/`  
+  Example plate images / dataset (optional).
+
+- `requirements.txt`  
+  Python dependencies for the project.
+
+---
+
+## System Flow (Mermaid Diagram)
+
+This diagram shows the **full end-to-end flow** for both modes: **real-time ANPR** (`main.py`) and **web ANPR** (`app.py`).
+
+```mermaid
+flowchart TD
+    %% ===== ENTRY POINT =====
+    A[Start] --> B[Select Mode]
+    B --> C[Real-time ANPR (main.py)]
+    B --> D[Web ANPR (app.py)]
+
+    %% ===== REAL-TIME PIPELINE (main.py) =====
+    subgraph RT[Real-time ANPR - Webcam]
+        C --> RT1[Load Parameters\nhelper/params.py -> Parameters]
+        RT1 --> RT2[Load YOLOv5 Model\nai/ai_model.load_yolov5_model]
+        RT2 --> RT3[Load EasyOCR Reader\naio/ocr_model.easyocr_model_load]
+        RT3 --> RT4[Open Webcam\ncv2.VideoCapture(0)]
+        RT4 --> RT5[Loop: Capture Frame]
+
+        RT5 --> RT6[Run Detection\nai/ai_model.detection(frame, model, names)]
+        RT6 --> RT7[Get Plate Bounding Box\n& Crop Plate Region]
+        RT7 --> RT8[Run OCR on Plate\ntext_reader.readtext(cropped_plate)]
+        RT8 --> RT9[Filter OCR Results\nhelper/general_utils.filter_text]
+        RT9 --> RT10[Append Latest Plate Text\nto ocr_results.csv\n(save_results)]
+        RT9 --> RT11[Print Plate Text to Console]
+
+        RT7 --> RT12[Draw Bounding Box & Label\non Frame]
+        RT12 --> RT13[Show Frame (cv2.imshow)]
+        RT13 --> RT14[Check Key (cv2.waitKey)]
+        RT14 --> RT15{ESC Pressed?}
+        RT15 -->|No| RT5
+        RT15 -->|Yes| RT16[Release Camera & Close Windows]
+    end
+
+    %% ===== WEB PIPELINE (app.py) =====
+    subgraph WEB[Flask Web ANPR]
+        D --> W1[Start Flask App]
+        W1 --> W2[Load YOLOv5 Model via torch.hub\npath=model/last.pt]
+
+        %% Upload-based detection (/)
+        W2 --> W3[Route '/': Show Upload Form\nindex.html]
+        W3 --> W4[User Uploads Image]
+        W4 --> W5[Read Image Bytes\nrequest.files['file'].read()]
+        W5 --> W6[Convert Bytes to PIL Image\nImage.open(BytesIO)]
+        W6 --> W7[Run YOLOv5 on Image\nmodel(img, size=640)]
+        W7 --> W8[Render Detections on Image\nresults.render()]
+        W8 --> W9[Save Output Image\nstatic/image0.jpg]
+        W9 --> W10[Redirect User to static/image0.jpg]
+
+        %% MJPEG streaming (/video)
+        W2 --> W11[Route '/video': Start gen()]
+        W11 --> W12[Open Webcam\ncv2.VideoCapture(0)]
+        W12 --> W13[Loop: Read Frame]
+        W13 --> W14[Encode Frame to JPEG\ncv2.imencode]
+        W14 --> W15[Wrap as PIL & Run YOLOv5\nmodel(img, size=640)]
+        W15 --> W16[Render Detections\nresults.render()]
+        W16 --> W17[Convert to BGR & JPEG Bytes]
+        W17 --> W18[Yield MJPEG Chunks\nFlask Response]
+    end
+```
+
+> **Note:** The **OCR step is only in the real-time `main.py` pipeline**. The Flask app, as written, uses YOLOv5 detection and visualizes bounding boxes but does not currently perform OCR in `app.py`.
 
 ---
 
@@ -53,12 +152,15 @@ Key files/folders (simplified):
 
 ### 1. Create and activate a virtual environment (recommended)
 
+From the project root (`Automatic-number-plate-recognition-YOLO-OCR`):
+
 ```bash
-# From project root: Automatic-number-plate-recognition-YOLO-OCR
 python -m venv .venv
+
 # Windows (PowerShell)
 .venv\Scripts\Activate.ps1
-# or CMD
+
+# Windows (CMD)
 .venv\Scripts\activate.bat
 ```
 
@@ -69,209 +171,176 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Download / place YOLOv5 weights
+### 3. Configure YOLOv5 model paths
 
-- Place your **trained plate detection model** in the `model/` directory:
-  - `model/best.pt` or `model/last.pt`
+- In `helper/params.py`, the default is:
 
-- Ensure the **paths match** the code:
+  ```python
+  self.model = "/home/mef/Documents/plate_detection_project/best.pt"
+  ```
 
-  - For `main.py` / `ai/ai_model.py`, `helper/params.py` currently uses:
+  **Change this** to your local weights path, typically:
 
-    ```python
-    self.model = "/home/mef/Documents/plate_detection_project/best.pt"
-    ```
+  ```python
+  self.model = "model/best.pt"
+  ```
 
-    **Update this** to point to your local weights, for example:
+- For `app.py`, YOLOv5 is loaded via:
 
-    ```python
-    self.model = "model/best.pt"
-    ```
+  ```python
+  model = torch.hub.load(
+      "ultralytics/yolov5", "custom", path="model/last.pt", force_reload=True
+  )
+  ```
 
-  - For the Flask app (`app.py`), the model is loaded from:
-
-    ```python
-    model = torch.hub.load(
-        "ultralytics/yolov5", "custom", path="model/last.pt", force_reload=True
-    )
-    ```
-
-    So make sure `model/last.pt` exists, or change the `path` accordingly.
-
----
-
-## How It Works – High-Level Pipeline
-
-### Real-time ANPR (`main.py`)
-
-1. **Initialize parameters** using `helper/params.py` (`Parameters` class).
-2. **Load YOLOv5 model** with `ai/ai_model.py::load_yolov5_model()`.
-3. **Open webcam** using OpenCV.
-4. **For each frame**:
-   - Run **plate detection** via `ai/ai_model.py::detection(frame, model, labels)`.
-   - Use **EasyOCR** (`easyocr.Reader`) to read text from the detected plate region.
-   - Filter OCR results using `helper/general_utils.py::filter_text(...)`.
-   - Append last detected plate text to `ocr_results.csv` via `save_results(...)`.
-   - Display frame with bounding boxes and plate label.
-
-### Flask Web App (`app.py`)
-
-1. Load YOLOv5 model via `torch.hub.load(..., path="model/last.pt")`.
-2. Provide:
-   - `"/"` route:
-     - GET: Render upload form (`templates/index.html`).
-     - POST: Accept image file, run YOLOv5 detection, save result to `static/image0.jpg`, redirect to it.
-   - `"/video"` route:
-     - Streams webcam feed with detections in **MJPEG** format.
-
----
-
-## ANPR Flow Diagram (Mermaid)
-
-```mermaid
-flowchart TD
-    A[Start] --> B{Entry Point}
-    B -->|Real-time mode| C[Run main.py]
-    B -->|Web app mode| D[Run app.py]
-
-    %% Real-time ANPR (main.py)
-    C --> E[Load Parameters (helper/params.py)]
-    E --> F[Load YOLOv5 Model (ai/ai_model.load_yolov5_model)]
-    F --> G[Initialize EasyOCR Reader (ai/ocr_model.easyocr_model_load)]
-    G --> H[Open Webcam (cv2.VideoCapture)]
-
-    H --> I[Read Frame]
-    I --> J[Detect Plate(s) with YOLOv5 (ai/ai_model.detection)]
-    J --> K[Crop Plate Region(s)]
-    K --> L[Run EasyOCR on Plate (text_reader.readtext)]
-    L --> M[Filter OCR Results (helper/general_utils.filter_text)]
-    M --> N[Append Last Plate Text to CSV (save_results)]
-    N --> O[Show Detection Window (cv2.imshow)]
-    O --> P{ESC Pressed?}
-    P -->|No| I
-    P -->|Yes| Q[Release Camera & Close Windows]
-    Q --> R[End]
-
-    %% Web App (app.py)
-    D --> S[Load YOLOv5 Model via torch.hub]
-    S --> T[/index.html Upload Form/]
-
-    T -->|User Uploads Image| U[Read Image Bytes]
-    U --> V[Run YOLOv5 Model (model(img, size=640))]
-    V --> W[Render Detection on Image (results.render)]
-    W --> X[Save Output as static/image0.jpg]
-    X --> Y[Redirect User to Output Image]
-    Y --> Z[End Web Request]
-```
+  Ensure `model/last.pt` exists, or update the `path` argument.
 
 ---
 
 ## Usage
 
-### 1. Real-Time Webcam ANPR (`main.py`)
+### A. Real-Time Webcam ANPR (`main.py`)
 
-Make sure:
+**Purpose:**  
+Run live ANPR from a webcam, perform OCR with EasyOCR, and log results to `ocr_results.csv`.
 
-- Your **webcam** is accessible.
-- `helper/params.py` points to your YOLO model (`self.model = "model/best.pt"` or similar).
-
-Run:
+**Run:**
 
 ```bash
 python main.py
 ```
 
-What happens:
+**What it does (step-by-step):**
 
-- A window opens showing the live camera feed with **detected plates** highlighted.
-- The latest plate text is printed in the console.
-- Detected plate strings are appended to `ocr_results.csv`.
+1. Loads global configuration from `helper/params.py` into a `Parameters` instance.
+2. Loads the YOLOv5 plate detection model using `ai/ai_model.load_yolov5_model`.
+3. Opens your default webcam (`cv2.VideoCapture(0)`).
+4. Starts an infinite loop:
+   - Grabs a frame from the webcam.
+   - Runs YOLOv5 detection to find license plates.
+   - Crops the detected plate region.
+   - Runs EasyOCR on the cropped plate.
+   - Filters OCR results using size/region threshold (`filter_text`).
+   - Saves the latest recognized plate string to `ocr_results.csv` (`save_results`).
+   - Overlays bounding boxes and labels on the frame.
+   - Displays the annotated frame in a window.
+5. Exits when **ESC** is pressed; releases the camera and closes windows.
 
-To exit:
+**Outputs:**
 
-- Press **ESC** in the detection window.
+- Console: prints recognized plate text.
+- `ocr_results.csv`: contains a list of plate strings (one per line).
+- OpenCV window: shows real-time camera feed with bounding boxes and labels.
 
 ---
 
-### 2. Flask Web App (`app.py`)
+### B. Flask Web App (`app.py`)
 
-Make sure:
+**Purpose:**  
+Provide a web interface for ANPR-like detection using YOLOv5.
 
-- `model/last.pt` exists or `path="model/your_weights.pt"` is set correctly.
-
-Run:
+**Run:**
 
 ```bash
 python app.py
 ```
 
-By default the app runs on `http://0.0.0.0:5000`.
+By default, the app listens on `http://0.0.0.0:5000`.
 
-Steps:
+#### 1. Upload-based Detection (`/`)
 
-1. Open your browser at `http://localhost:5000`.
-2. Upload an image containing a license plate.
-3. You’ll be redirected to `static/image0.jpg` showing the detection result.
+- Go to: `http://localhost:5000`
+- You will see an upload form (from `templates/index.html`).
+- Steps:
+  1. Choose an image containing a vehicle license plate.
+  2. Submit the form.
+  3. The server:
+     - Reads the file.
+     - Converts to a PIL image.
+     - Runs YOLOv5 detection (`model(img, size=640)`).
+     - Calls `results.render()` to draw bounding boxes.
+     - Saves the resulting image as `static/image0.jpg`.
+     - Redirects you to `static/image0.jpg`, which shows the annotated image.
 
-Additional route:
+#### 2. Streaming Detection (`/video`)
 
-- `http://localhost:5000/video` – Streams webcam with YOLO detections (no OCR pipeline here).
+- Go to: `http://localhost:5000/video`
+- The server:
+  - Opens the webcam.
+  - In a loop:
+    - Reads each frame.
+    - Passes it through YOLOv5.
+    - Renders detections onto the frame.
+    - Encodes the frame as JPEG.
+    - Streams it back as an MJPEG stream.
+
+> **Note:** The `/video` route currently **does not do OCR**, just YOLOv5 detection and visualization.
 
 ---
 
 ## Configuration Details
 
-Key configuration is in `helper/params.py`:
+All important runtime settings are centralized in `helper/params.py`:
 
-- **Model & device**
-  - `self.model` – Path to YOLO weights (update to match your setup).
-  - `self.device` – CUDA if available, else CPU.
+- **Model & Hardware**
+  - `self.model` – Path to YOLOv5 weights for real-time pipeline.
+  - `self.device` – `cuda:0` if available, otherwise `cpu`.
 
-- **Inference settings**
-  - `self.imgsz` – Input size for the model (default 640).
-  - `self.conf_thres` – Confidence threshold for detections.
-  - `self.max_det` – Max detections per image.
+- **Detection & Inference**
+  - `self.imgsz` – Input resolution for YOLOv5 (default: 640).
+  - `self.conf_thres` – Confidence threshold.
+  - `self.max_det` – Max number of detections per image.
+  - `self.pred_shape` – Target shape for intermediate image resizing.
 
-- **OCR filtering**
-  - `self.rect_size` – Normalization factor for bounding box size.
-  - `self.region_threshold` – Minimum relative area for a region to be considered valid.
+- **OCR Filtering**
+  - `self.rect_size` – Base rectangle size used for normalization.
+  - `self.region_threshold` – Minimum area ratio to accept a text region.
 
 - **Visualization**
-  - `self.color`, `self.rect_thickness`, `self.font_scale`, etc.
+  - `self.color_blue`, `self.color_red`, `self.color` – Bounding box colors.
+  - `self.rect_thickness` – Thickness of bounding boxes.
+  - `self.font_scale`, `self.thickness` – Label font size and thickness.
 
-You can adjust these for your deployment environment or dataset.
-
----
-
-## Data and Outputs
-
-- **Input examples**
-  - `plate_dataset/` – Images of license plates (for testing OCR).
-  - `data/images/` – Example images (`bus.jpg`, `zidane.jpg`).
-
-- **Outputs**
-  - `ocr_results.csv` – Each run of `main.py` appends recognized plate text.
-  - `static/image0.jpg` – Latest output from the Flask app.
+You can tune these to your camera, environment, and plate characteristics.
 
 ---
 
-## Known Notes / Tips
+## Data & Outputs
 
-- **Model path**: The hardcoded path in `helper/params.py` is likely from a different environment:
-  - `"/home/mef/Documents/plate_detection_project/best.pt"`
-  - **You must change this** to a local relative path (e.g., `"model/best.pt"`).
+- **Sample images / datasets**
+  - `plate_dataset/` – Plate images (useful for testing OCR functions).
+  - `data/images/` – Example images like `bus.jpg`, `zidane.jpg`.
 
-- **Performance**:
-  - If running on CPU, inference will be slower; consider reducing `self.imgsz` or `conf_thres`.
-  - For faster real-time performance, use a smaller YOLO model (e.g., `yolov5s`-based weights).
+- **Generated outputs**
+  - `ocr_results.csv` – Appended with each new recognized plate (real-time pipeline).
+  - `static/image0.jpg` – Latest result from the Flask upload endpoint.
 
-- **OCR quality**:
-  - EasyOCR performance depends on plate size and image clarity.
-  - You may tune `rect_size` and `region_threshold` in `helper/params.py` or pre-process cropping/resizing.
+---
+
+## Troubleshooting
+
+- **Mermaid diagram not rendering:**
+  - Ensure you view the README in a viewer that **supports Mermaid**, such as:
+    - GitHub, GitLab, or modern Markdown preview plugins.
+  - Make sure the code fence is exactly:
+    - Opening fence: ```mermaid  
+    - Closing fence: ``` (no extra spaces or indentation).
+
+- **CUDA / GPU issues:**
+  - If you don’t have a GPU or CUDA, the code will fall back to CPU:
+    ```python
+    self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    ```
+  - CPU will be slower; you can reduce `imgsz` or use smaller YOLOv5 weights.
+
+- **Model not found:**
+  - Double-check `self.model` in `helper/params.py`.
+  - Ensure `model/best.pt` or `model/last.pt` exist and the paths are correct.
 
 ---
 
 ## License
 
-This project includes YOLOv5-based components and utilities. See `LICENSE` for full license information and ensure compliance with **Ultralytics YOLOv5** license terms if you redistribute or deploy commercially.
+This project includes YOLOv5-based components and utilities derived from Ultralytics’ YOLOv5.  
+See the `LICENSE` file for full license terms and ensure compliance, especially if you plan to use the project commercially.
 
