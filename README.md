@@ -1,4 +1,4 @@
-# Automatic Number Plate Recognition (ANPR) – YOLOv5 + OCR
+# Automatic Number Plate Recognition (ANPR) – YOLOv8 + OCR
 
 ### Overview
 
@@ -20,7 +20,7 @@ The system can:
 ## Features
 
 - **YOLOv5-based license plate detector**
-  - Custom-trained YOLOv5 weights in `model/best.pt` or `model/last.pt`.
+  - Custom-trained YOLOv8 weights in `model/best.pt` or `model/last.pt`.
 - **OCR with EasyOCR**
   - Robust text recognition from cropped plate regions.
 - **Post-processing & filtering**
@@ -31,7 +31,7 @@ The system can:
   - Full end-to-end pipeline: detect → crop → OCR → log → display.
 - **Flask web app**
   - Upload an image and get a processed image with detections.
-  - Optional live MJPEG stream (`/video` route) with YOLOv5 detections.
+  - Optional live MJPEG stream (`/video` route) with YOLOv8 detections.
 
 ---
 
@@ -40,17 +40,17 @@ The system can:
 > (Only important files and directories listed)
 
 - `main.py`  
-  Real-time ANPR using webcam (YOLOv5 + EasyOCR + CSV logging).
+  Real-time ANPR using webcam (YOLOv8 + EasyOCR + CSV logging).
 
 - `app.py`  
   Flask web app for:
   - `/` – Image upload → detection → output image.
-  - `/video` – Continuous webcam stream with YOLOv5 detections.
+  - `/video` – Continuous webcam stream with YOLOv8 detections.
 
 - `ai/`
   - `ai_model.py`  
-    - `load_yolov5_model()` – Loads YOLOv5 model from `helper/params.py::Parameters.model`.  
-    - `detection(frame, model, names)` – Runs YOLOv5 on a frame, returns annotated frame and label.
+    - `load_yolov5_model()` – Loads YOLOv8 model from `helper/params.py::Parameters.model`.  
+    - `detection(frame, model, names)` – Runs YOLOv8 on a frame, returns annotated frame and label.
   - `ocr_model.py`  
     - `easyocr_model_load()` – Initializes EasyOCR reader.  
     - `easyocr_model_works()` – Helper for running OCR on lists of images.  
@@ -67,7 +67,7 @@ The system can:
   - Core YOLOv5 model definitions and utilities (ported from Ultralytics).
 
 - `model/`
-  - `best.pt`, `last.pt` – YOLOv5 weights for plate detection (you must provide/replace these).
+  - `best.pt`, `last.pt` – YOLOv8 weights for plate detection (you must provide/replace these).
 
 - `templates/`
   - `index.html` – Template for the Flask upload page.
@@ -96,7 +96,7 @@ flowchart TD
     %% ===== REAL TIME PIPELINE =====
     subgraph RT[Real time ANPR Webcam]
         C --> RT1[Load Parameters helper params]
-        RT1 --> RT2[Load YOLOv5 Model]
+        RT1 --> RT2[Load YOLOv8 Model]
         RT2 --> RT3[Load EasyOCR Reader]
         RT3 --> RT4[Open Webcam]
         RT4 --> RT5[Capture Frame Loop]
@@ -120,7 +120,7 @@ flowchart TD
     %% ===== WEB PIPELINE =====
     subgraph WEB[Flask Web ANPR]
         D --> W1[Start Flask App]
-        W1 --> W2[Load YOLOv5 Model]
+        W1 --> W2[Load YOLOv8 Model]
 
         W2 --> W3[Route Slash Upload Form]
         W3 --> W4[User Uploads Image]
@@ -141,7 +141,7 @@ flowchart TD
     end
 ```
 
-> **Note:** The **OCR step is only in the real-time `main.py` pipeline**. The Flask app, as written, uses YOLOv5 detection and visualizes bounding boxes but does not currently perform OCR in `app.py`.
+> **Note:** The **OCR step is only in the real-time `main.py` pipeline**. The Flask app, as written, uses YOLOv8 detection and visualizes bounding boxes but does not currently perform OCR in `app.py`.
 
 ---
 
@@ -182,7 +182,7 @@ pip install -r requirements.txt
   self.model = "model/best.pt"
   ```
 
-- For `app.py`, YOLOv5 is loaded via:
+- For `app.py`, YOLOv8 is loaded via:
 
   ```python
   model = torch.hub.load(
@@ -210,11 +210,11 @@ python main.py
 **What it does (step-by-step):**
 
 1. Loads global configuration from `helper/params.py` into a `Parameters` instance.
-2. Loads the YOLOv5 plate detection model using `ai/ai_model.load_yolov5_model`.
+2. Loads the YOLOv8 plate detection model using `ai/ai_model.load_yolov5_model`.
 3. Opens your default webcam (`cv2.VideoCapture(0)`).
 4. Starts an infinite loop:
    - Grabs a frame from the webcam.
-   - Runs YOLOv5 detection to find license plates.
+   - Runs YOLOv8 detection to find license plates.
    - Crops the detected plate region.
    - Runs EasyOCR on the cropped plate.
    - Filters OCR results using size/region threshold (`filter_text`).
@@ -234,7 +234,7 @@ python main.py
 ### B. Flask Web App (`app.py`)
 
 **Purpose:**  
-Provide a web interface for ANPR-like detection using YOLOv5.
+Provide a web interface for ANPR-like detection using YOLOv8.
 
 **Run:**
 
@@ -266,12 +266,12 @@ By default, the app listens on `http://0.0.0.0:5000`.
   - Opens the webcam.
   - In a loop:
     - Reads each frame.
-    - Passes it through YOLOv5.
+    - Passes it through YOLOv8.
     - Renders detections onto the frame.
     - Encodes the frame as JPEG.
     - Streams it back as an MJPEG stream.
 
-> **Note:** The `/video` route currently **does not do OCR**, just YOLOv5 detection and visualization.
+> **Note:** The `/video` route currently **does not do OCR**, just YOLOv8 detection and visualization.
 
 ---
 
@@ -280,11 +280,11 @@ By default, the app listens on `http://0.0.0.0:5000`.
 All important runtime settings are centralized in `helper/params.py`:
 
 - **Model & Hardware**
-  - `self.model` – Path to YOLOv5 weights for real-time pipeline.
+  - `self.model` – Path to YOLOv8 weights for real-time pipeline.
   - `self.device` – `cuda:0` if available, otherwise `cpu`.
 
 - **Detection & Inference**
-  - `self.imgsz` – Input resolution for YOLOv5 (default: 640).
+  - `self.imgsz` – Input resolution for YOLOv8 (default: 640).
   - `self.conf_thres` – Confidence threshold.
   - `self.max_det` – Max number of detections per image.
   - `self.pred_shape` – Target shape for intermediate image resizing.
