@@ -65,7 +65,7 @@ The pipeline in the project is as follows:
 
 * As you can see, first step is detect the plate with using Yolov5. 
 
-![images](https://github.com/mftnakrsu/Automatic-number-plate-recognition-YOLO-OCR/blob/main/imgs/realtime.png)
+![images]()
 
 * After detect plate, apply the ocr. Paddle ocr Easy ocr for recognizing plate.  
 
