@@ -4,7 +4,7 @@
 
 This project implements an **Automatic Number Plate Recognition (ANPR)** system using:
 
-- **YOLOv5** for license plate detection.
+- **YOLOv8** for license plate detection.
 - **EasyOCR** (and optionally Tesseract) for reading plate text.
 - A **real-time webcam pipeline** (`main.py`) that detects and reads plates live.
 - A **Flask web app** (`app.py`) where users can upload images or view a live detection stream.
